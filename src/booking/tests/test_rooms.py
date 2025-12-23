@@ -1,7 +1,7 @@
 import json
 import pytest
 
-from booking import models
+from booking.models import book
 from typing import Any
 
 import pytest
@@ -16,7 +16,7 @@ ROOM_CASES = [
 @pytest.mark.parametrize("room", ROOM_CASES)
 def test_add_room_persists_room(json_db, room: dict[str, Any]):
     # Arrange
-    service = models.RoomService(json_db)
+    service = book.RoomService(json_db)
 
     # Act
     service.add(room["name"], room["capacity"])
@@ -31,7 +31,7 @@ def test_add_room_persists_room(json_db, room: dict[str, Any]):
 
 # ---------- Fixtures ----------
 @pytest.fixture
-def json_db(tmp_path: models.Path):
+def json_db(tmp_path: book.Path):
     """
     Creates an empty book.json file and returns its path.
     """
