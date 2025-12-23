@@ -1,11 +1,10 @@
-import configparser
-import typer
+from configparser import ConfigParser
 from pathlib import Path
 from booking import(
-    DB_WRITE_ERROR, DIR_ERROR, FILE_ERROR, SUCCESS, __app_name__
+    DB_WRITE_ERROR, DIR_ERROR, FILE_ERROR, SUCCESS, __app_name__, database
 )
 
-CONFIG_DIR_PATH = Path(typer.get_app_dir(__app_name__))
+CONFIG_DIR_PATH = Path.cwd()
 CONFIG_FILE_PATH = CONFIG_DIR_PATH / 'config.ini'
 
 def init_app(db_path: str) ->int:
@@ -26,10 +25,11 @@ def _init_config_file() -> int:
         CONFIG_FILE_PATH.touch(exist_ok=True)
     except OSError:
         return FILE_ERROR
+    
     return SUCCESS
 
 def _create_database(db_path: str) -> int:
-    config_parser = configparser.ConfigParser()
+    config_parser = ConfigParser()
     config_parser["General"] = {"database": db_path}
     try:
         with CONFIG_FILE_PATH.open("w") as file:
@@ -37,3 +37,12 @@ def _create_database(db_path: str) -> int:
     except OSError:
         return DB_WRITE_ERROR
     return SUCCESS
+
+def _get_database_path()->Path:
+    config_parser = ConfigParser()
+    config_parser.read(CONFIG_FILE_PATH)
+    
+    try:
+        return Path(config_parser["General"]["database"])
+    except KeyError:
+        return Path(database.DEFAULT_DB_FILE_PATH)
