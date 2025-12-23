@@ -1,8 +1,7 @@
-import configparser
 import json
 from typing import Any, Dict, List, NamedTuple
 from pathlib import Path
-from booking import DB_WRITE_ERROR, DB_READ_ERROR, JSON_ERROR, SUCCESS
+from booking import DB_WRITE_ERROR, DB_READ_ERROR, JSON_ERROR, SUCCESS, DB_INIT_ERROR
 
 DEFAULT_DB_FILE_PATH  = Path.home().joinpath(
     "." + Path.home().stem + "_bookings.json"
@@ -12,13 +11,12 @@ class DBResponse(NamedTuple):
     list: List[Dict[str, Any]]
     code: int
 
-
 class DatabaseHandler:
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
         
-    def get_path(self, db_path: Path) -> Path:
-        self._db_path = db_path
+    def get_path(self) -> Path:
+        return Path(self._db_path)
     
     def read(self, key: str) -> DBResponse:
         try:
@@ -35,6 +33,7 @@ class DatabaseHandler:
     
     def write(self, key: str, value: list[Any]) -> DBResponse:
         try:
+            print(f"attempting to write to {self._db_path}")
             data = {}
             if self._db_path.exists():
                 with self._db_path.open("r") as db:
@@ -42,7 +41,7 @@ class DatabaseHandler:
                         data = json.load(db)
                     except json.JSONDecodeError:
                         data = {}
-
+            
             data[key] = value
 
             with self._db_path.open("w") as db:
@@ -51,4 +50,5 @@ class DatabaseHandler:
             return DBResponse(data[key], SUCCESS)
 
         except OSError:
+            print(f"attempting to write to {self._db_path}")
             return DBResponse([], DB_WRITE_ERROR)
