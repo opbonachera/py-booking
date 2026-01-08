@@ -96,3 +96,14 @@ class RoomService():
         self._db_handler.write("rooms", room_list)
         
         return RoomServiceResponse(removed_element, SUCCESS)
+    
+    def get_room_by_name(self, room_name: str) -> RoomServiceResponse:
+        """Get a room by its name"""
+        room_list = self._db_handler.read("rooms").list
+        
+        room = next((r for r in room_list if r.get("name", "").lower() == room_name.lower()), None)
+        
+        if room is None:
+            return RoomServiceResponse([], ERROR_ELEMENT_NOT_FOUND)
+        
+        return RoomServiceResponse([room], SUCCESS)
