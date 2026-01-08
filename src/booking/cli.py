@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import Optional
 from booking import ERRORS, __app_name__, __version__, config, database, DB_INIT_ERROR, DEFAULT
 from booking.models.room import RoomService
+from booking.models.book import BookingService
+from booking.validators import BookingValidator, DateValidator
 from configparser import ConfigParser
 
 app = typer.Typer()
@@ -90,3 +92,99 @@ def edit(
     edited_room = room_service.edit(room_name, new_room_name, new_capacity)
     
     typer.secho(f"{edited_room}", fg=typer.colors.GREEN)
+
+
+@app.command()
+def book(
+    room_name: str = typer.Option(..., "--room-name", "-r", help="Name of the room to book"),
+    start_date: str = typer.Option(..., "--start-date", "-s", help="Check-in date (YYYY-MM-DD)"),
+    end_date: str = typer.Option(..., "--end-date", "-e", help="Check-out date (YYYY-MM-DD)"),
+) -> None:
+    """Book a room for specific dates."""
+    db_path = config._get_database_path()
+    room_service = RoomService(db_path=db_path)
+    booking_service = BookingService(db_path=db_path)
+    
+    # Validate dates format and values
+    is_valid, error_msg = BookingValidator.validate_booking_dates(start_date, end_date)
+    if not is_valid:
+        typer.secho(f"Date validation error: {error_msg}", fg=typer.colors.RED)
+        return
+    
+    # Check if room exists
+    room_response = room_service.get_room_by_name(room_name)
+    if room_response.error:
+        typer.secho(f"Room '{room_name}' not found in database", fg=typer.colors.RED)
+        return
+    
+    room = room_response.list[0]
+    room_id = room.get("id")
+    
+    # Check for booking conflicts
+    existing_bookings_response = booking_service.get_bookings_by_room(room_id)
+    existing_bookings = existing_bookings_response.list if existing_bookings_response.error == 0 else []
+    
+    is_available, conflict_msg = BookingValidator.check_room_availability(
+        room_id, start_date, end_date, existing_bookings
+    )
+    
+    if not is_available:
+        typer.secho(f"Booking failed: {conflict_msg}", fg=typer.colors.RED)
+        return
+    
+    # Create the booking
+    booking_response = booking_service.add(room_name, room_id, start_date, end_date)
+    
+    if booking_response.error:
+        typer.secho(f"Booking failed with error code {booking_response.error}", fg=typer.colors.RED)
+        return
+    
+    booking = booking_response.booking
+    typer.secho(
+        f"✓ Room '{room_name}' successfully booked from {start_date} to {end_date}\n"
+        f"  Booking ID: {booking.id}",
+        fg=typer.colors.GREEN
+    )
+
+
+@app.command()
+def list_bookings(
+    room_name: str = typer.Option(None, "--room-name", "-r", help="Filter bookings by room name (optional)"),
+) -> None:
+    """List all bookings or bookings for a specific room."""
+    db_path = config._get_database_path()
+    booking_service = BookingService(db_path=db_path)
+    room_service = RoomService(db_path=db_path)
+    
+    bookings_response = booking_service.get_bookings()
+    
+    if bookings_response.error:
+        typer.secho("Failed to retrieve bookings", fg=typer.colors.RED)
+        return
+    
+    bookings = bookings_response.list
+    
+    # Filter by room name if provided
+    if room_name:
+        bookings = [b for b in bookings if b.room_name.lower() == room_name.lower()]
+        if not bookings:
+            typer.secho(f"No bookings found for room '{room_name}'", fg=typer.colors.YELLOW)
+            return
+    
+    if not bookings:
+        typer.secho("No bookings found", fg=typer.colors.YELLOW)
+        return
+    
+    # Display bookings
+    typer.secho("\n" + "="*70, fg=typer.colors.CYAN)
+    typer.secho("BOOKINGS", fg=typer.colors.CYAN)
+    typer.secho("="*70, fg=typer.colors.CYAN)
+    
+    for booking in bookings:
+        typer.secho(
+            f"Room: {booking.room_name}\n"
+            f"  Check-in:  {booking.start_date}\n"
+            f"  Check-out: {booking.end_date}\n"
+            f"  Booking ID: {booking.id}\n",
+            fg=typer.colors.GREEN
+        )
